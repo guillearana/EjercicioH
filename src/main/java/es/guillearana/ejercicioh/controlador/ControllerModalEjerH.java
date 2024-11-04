@@ -10,7 +10,12 @@ import javafx.event.ActionEvent;
 
 /**
  * Controlador para la ventana modal de agregar o modificar una persona.
- * Permite al usuario ingresar o modificar los datos de una persona y los valida antes de guardarlos.
+ * Permite al usuario ingresar o modificar los datos de una persona y
+ * valida los datos antes de guardarlos.
+ *
+ * Esta clase maneja los eventos de la interfaz gráfica relacionados con
+ * la entrada de datos de una persona, mostrando alertas cuando los datos
+ * son inválidos y gestionando el cierre de la ventana modal.
  */
 public class ControllerModalEjerH {
 
@@ -50,24 +55,38 @@ public class ControllerModalEjerH {
 
     /**
      * Acción para guardar la persona ingresada.
-     * Valida los datos y, si son válidos, crea una nueva Persona y cierra la ventana modal.
+     * Valida los datos y, si son válidos, crea una nueva persona o
+     * modifica la existente y cierra la ventana modal.
      *
      * @param event el evento de acción del botón "Guardar"
      */
     @FXML
     void guardarPersona(ActionEvent event) {
         if (datosValidos()) {
-            String nombre = txtNombre.getText();
-            String apellidos = txtApellidos.getText();
+            String nombre = txtNombre.getText().trim();
+            String apellidos = txtApellidos.getText().trim();
             int edad = Integer.parseInt(txtEdad.getText().trim());
 
-            persona = new Persona(nombre, apellidos, edad);
-            cerrarVentana();
+            // Crea una nueva persona si es null
+            if (persona == null) {
+                persona = new Persona(nombre, apellidos, edad); // Crear nueva persona si es null
+                mostrarAlerta("Persona agregada con éxito.", Alert.AlertType.INFORMATION);
+            } else {
+                // Actualiza la persona existente
+                persona.setNombre(nombre);
+                persona.setApellidos(apellidos);
+                persona.setEdad(edad);
+                mostrarAlerta("Persona guardada con éxito.", Alert.AlertType.INFORMATION);
+            }
+
+            cerrarVentana(); // Cierra la ventana si los datos son válidos
         }
     }
 
     /**
      * Cierra la ventana modal.
+     * Este método se utiliza para cerrar la ventana de diálogo
+     * sin realizar ninguna acción adicional.
      */
     private void cerrarVentana() {
         Stage stage = (Stage) txtNombre.getScene().getWindow();
@@ -77,7 +96,7 @@ public class ControllerModalEjerH {
     /**
      * Obtiene la persona creada o modificada en la ventana modal.
      *
-     * @return la persona creada/modificada
+     * @return la persona creada/modificada o null si no se ha creado
      */
     public Persona getPersona() {
         return persona;
@@ -105,35 +124,35 @@ public class ControllerModalEjerH {
      * @return true si los datos son válidos, false en caso contrario
      */
     private boolean datosValidos() {
-        String errores = "";
+        StringBuilder errores = new StringBuilder();
 
-        if (txtNombre.getText().isEmpty()) {
-            errores += "El nombre no puede estar vacío.\n";
+        if (txtNombre.getText().trim().isEmpty()) {
+            errores.append("El nombre no puede estar vacío.\n");
         }
 
-        if (txtApellidos.getText().isEmpty()) {
-            errores += "Los apellidos no pueden estar vacíos.\n";
+        if (txtApellidos.getText().trim().isEmpty()) {
+            errores.append("Los apellidos no pueden estar vacíos.\n");
         }
 
-        if (txtEdad.getText().isEmpty()) {
-            errores += "La edad no puede estar vacía.\n";
+        String edadTexto = txtEdad.getText().trim();
+        if (edadTexto.isEmpty()) {
+            errores.append("La edad no puede estar vacía.\n");
         } else {
             try {
-                int edad = Integer.parseInt(txtEdad.getText().trim());
+                int edad = Integer.parseInt(edadTexto);
                 if (edad < 0) {
-                    errores += "La edad no puede ser negativa.\n";
+                    errores.append("La edad no puede ser negativa.\n");
                 }
             } catch (NumberFormatException e) {
-                errores += "La edad debe ser un número válido.\n";
+                errores.append("La edad debe ser un número válido.\n");
             }
         }
 
-        if (!errores.isEmpty()) {
-            mostrarAlerta(errores);
-            return false;
-        } else {
-            return true;
+        if (errores.length() > 0) {
+            mostrarAlerta(errores.toString(), Alert.AlertType.ERROR);
+            return false; // Retorna false si hay errores
         }
+        return true; // Retorna true si no hay errores
     }
 
     /**
@@ -141,10 +160,11 @@ public class ControllerModalEjerH {
      * Se utiliza para mostrar mensajes de error o información al usuario.
      *
      * @param mensaje el mensaje a mostrar en la alerta
+     * @param tipo tipo de alerta (INFORMATION, ERROR, etc.)
      */
-    private void mostrarAlerta(String mensaje) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Información");
+    private void mostrarAlerta(String mensaje, Alert.AlertType tipo) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(tipo == Alert.AlertType.ERROR ? "Error" : "Información");
         alert.setHeaderText(null);
         alert.setContentText(mensaje);
         alert.showAndWait();

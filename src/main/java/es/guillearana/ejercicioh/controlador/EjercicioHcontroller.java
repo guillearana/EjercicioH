@@ -1,13 +1,10 @@
 package es.guillearana.ejercicioh.controlador;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import es.guillearana.ejercicioh.conexion.ConexionBD;
-
+import es.guillearana.ejercicioh.dao.PersonaDao;
 import es.guillearana.ejercicioh.model.Persona;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -23,7 +20,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.collections.transformation.SortedList;
-import java.io.*;
 
 /**
  * Controlador para la gestión de la vista principal de la aplicación de personas.
@@ -64,11 +60,17 @@ public class EjercicioHcontroller {
     @FXML
     private TextField txtNombre;
 
+    /** Conexión a la base de datos. */
     private ConexionBD conexion = new ConexionBD();
 
     /** Lista observable que contiene las personas. */
     private ObservableList<Persona> personasData = FXCollections.observableArrayList();
 
+    /**
+     * Constructor del controlador. Se lanza una excepción SQLException.
+     *
+     * @throws SQLException si ocurre un error al establecer la conexión a la base de datos
+     */
     public EjercicioHcontroller() throws SQLException {
     }
 
@@ -78,100 +80,86 @@ public class EjercicioHcontroller {
      * y la agrega a la lista si es válida.
      *
      * @param event el evento de acción del botón "Agregar"
+     * @throws ClassNotFoundException si la clase no se encuentra durante la carga del FXML
      */
     @FXML
     void accionAgregar(ActionEvent event) throws ClassNotFoundException {
         // Abre la ventana modal para ingresar los detalles de la nueva persona
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ejer-h-modal.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/es/guillearana/ejercicioh/ejerHmodal.fxml"));
             Parent root = loader.load();
             ControllerModalEjerH controller = loader.getController();
 
+            // Configuración de la ventana modal
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
-            stage.setResizable(false); // Esto hace que la ventana no sea redimensionable
+            stage.setResizable(false); // La ventana no es redimensionable
             stage.setTitle("Agregar Persona");
             stage.setScene(new Scene(root));
-            stage.showAndWait(); // Esto bloqueará la ventana principal hasta que la modal se cierre
+            stage.showAndWait(); // Bloquea la ventana principal hasta que la modal se cierre
 
-            // Recuperamos la persona que hemos creado gracias al metodo getPersona situado
+            // Recuperamos la persona que hemos creado gracias al método getPersona situado
             // en el controlador modal
             Persona nuevaPersona = controller.getPersona();
 
-            // Si la persona que recuperamos de la ventana modal no es null comparamos con
-            // la lista que acabamos de guardar y si no hay coincidencias añadimos la
-            // persona a la lista y mostramos una alerta para decir que hemos añadido a la
-            // persona o que no hemos podido añadir a la persona porque ya hay una
-            // completamente igual
+            // Si la persona que recuperamos de la ventana modal no es null
             if (nuevaPersona != null) {
-                try {
-                    conexion.getConexion();
-                    Connection connection = conexion.getConexion();
-                    if (!personasData.contains(nuevaPersona)) {
-                        String sql = "INSERT INTO Persona(nombre, apellidos, edad) VALUES (?, ?, ?)";
-                        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                            statement.setString(1, nuevaPersona.getNombre());
-                            statement.setString(2, nuevaPersona.getApellidos());
-                            statement.setInt(3, nuevaPersona.getEdad());
-                            int rowsInserted = statement.executeUpdate();
-                            if (rowsInserted > 0) {
-                                mostrarAlerta("Persona añadida con éxito.");
-                                personasData.add(nuevaPersona);
-                            } else {
-                                mostrarAlerta("Error al añadir persona.");
-                            }
-                        }
-                    } else {
-                        mostrarAlerta("La persona ya esta en la tabla");
+                PersonaDao personaDao = new PersonaDao(); // Crear una instancia de PersonaDao
+                if (!personasData.contains(nuevaPersona)) { // Comprobamos que no exista ya
+                    try {
+                        personaDao.aniadirPersona(nuevaPersona); // Llamar al método para añadir la persona
+                        mostrarAlerta("Persona añadida con éxito.");
+                        personasData.add(nuevaPersona); // Añadir la persona a la lista
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                        mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
                     }
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                    mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
+                } else {
+                    mostrarAlerta("La persona ya está en la tabla."); // Alerta si ya existe
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    // Metodo para eliminar la persona que tenemos seleccionada y mostramos una
-    // alerta cuando eliminamos una
+    /**
+     * Acción para eliminar una persona seleccionada.
+     * Muestra una alerta cuando se elimina una persona.
+     *
+     * @param event el evento de acción del botón "Eliminar"
+     */
     @FXML
-    void accionEliminar(ActionEvent event) throws ClassNotFoundException {
-        Persona selected = personasData.get(0);
-        if (selected != null) {
-            try {
-                conexion.getConexion();
-                Connection connection = conexion.getConexion();
+    void accionEliminar(ActionEvent event) {
+        if (!personasData.isEmpty()) { // Asegúrate de que la lista no esté vacía.
+            Persona selected = tableInfo.getSelectionModel().getSelectedItem(); // Obtener la persona seleccionada
+            if (selected != null) {
+                try {
+                    PersonaDao personaDao = new PersonaDao(); // Crear una instancia de PersonaDao
+                    personaDao.eliminarPersona(selected); // Llama al método eliminar de PersonaDao.
 
-                String sql = "DELETE FROM Persona WHERE nombre = ? AND apellidos = ? AND edad = ?";
-                try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                    statement.setString(1, selected.getNombre());
-                    statement.setString(2, selected.getApellidos());
-                    statement.setInt(3, selected.getEdad());
-
-                    System.out.println(sql);
-                    int rowsAffected = statement.executeUpdate();
-                    if (rowsAffected > 0) {
-                        personasData.remove(selected);
-                        mostrarAlerta("Persona eliminada con éxito");
-                    } else {
-                        mostrarAlerta("Error al eliminar persona en la base de datos.");
-                    }
+                    personasData.remove(selected); // Elimina de la lista local.
+                    mostrarAlerta("Persona eliminada con éxito");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
                 }
-            } catch (SQLException e) {
-                e.printStackTrace();
-                mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
+            } else {
+                mostrarAlerta("No se ha seleccionado ninguna persona para eliminar.");
             }
+        } else {
+            mostrarAlerta("La lista de personas está vacía.");
         }
     }
-
 
     /**
      * Acción para modificar una persona seleccionada en la tabla.
      * Abre una ventana modal para editar los datos de la persona seleccionada.
      *
      * @param event el evento de acción del botón "Modificar"
+     * @throws ClassNotFoundException si la clase no se encuentra durante la carga del FXML
      */
     @FXML
     void accionModificar(ActionEvent event) throws ClassNotFoundException {
@@ -181,7 +169,7 @@ public class EjercicioHcontroller {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/es/guillearana/ejercicioh/ejerHmodal.fxml"));
                 Parent root = loader.load();
                 ControllerModalEjerH controller = loader.getController();
-                controller.setPersona(personaSeleccionada);
+                controller.setPersona(personaSeleccionada); // Rellenar campos con los datos de la persona seleccionada
 
                 Stage stage = new Stage();
                 stage.initModality(Modality.APPLICATION_MODAL);
@@ -191,97 +179,75 @@ public class EjercicioHcontroller {
 
                 Persona personaModificada = controller.getPersona();
                 if (personaModificada != null) {
-                    try {
-                        conexion.getConexion();
-                        Connection connection = conexion.getConexion();
+                    // Usar PersonaDao para modificar la persona en la base de datos
+                    PersonaDao personaDao = new PersonaDao();
+                    personaDao.modificarPersona(personaModificada); // Llamar al método modificar en PersonaDao
 
-                        String sql = "UPDATE Persona SET nombre = ?, apellidos = ?, edad = ? WHERE nombre = ? AND apellidos = ? AND edad = ?";
-                        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                            // Aquí actualizamos la persona seleccionada con los nuevos datos
-                            statement.setString(1, personaModificada.getNombre());
-                            statement.setString(2, personaModificada.getApellidos());
-                            statement.setInt(3, personaModificada.getEdad());
-
-                            // Aquí buscamos a la persona seleccionada para cambiarla
-                            statement.setString(4, personaSeleccionada.getNombre());
-                            statement.setString(5, personaSeleccionada.getApellidos());
-                            statement.setInt(6, personaSeleccionada.getEdad());
-
-                            System.out.println(sql);
-
-                            int rowsAffected = statement.executeUpdate();
-                            if (rowsAffected > 0) {
-                                personaSeleccionada.setNombre(personaModificada.getNombre());
-                                personaSeleccionada.setApellidos(personaModificada.getApellidos());
-                                personaSeleccionada.setEdad(personaModificada.getEdad());
-                                tableInfo.refresh();
-                                mostrarAlerta("Persona modificada con éxito");
-                            } else {
-                                mostrarAlerta("Error al modificar persona en la base de datos.");
-                            }
-
-                        }
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                        mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
-                    }
+                    // Actualizar la lista local si la modificación fue exitosa
+                    personaSeleccionada.setNombre(personaModificada.getNombre());
+                    personaSeleccionada.setApellidos(personaModificada.getApellidos());
+                    personaSeleccionada.setEdad(personaModificada.getEdad());
+                    tableInfo.refresh(); // Refrescar la tabla para mostrar los cambios
+                    mostrarAlerta("Persona modificada con éxito");
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+            } catch (SQLException e) {
+                e.printStackTrace();
+                mostrarAlerta("Error al interactuar con la base de datos: " + e.getMessage());
             }
+        } else {
+            mostrarAlerta("No se ha seleccionado ninguna persona para modificar.");
         }
     }
 
     /**
      * Inicializa el controlador configurando las columnas de la tabla y el filtro de búsqueda.
+     *
+     * @throws SQLException si ocurre un error al cargar los datos de la base de datos
      */
     public void initialize() throws SQLException {
         colNombre.setCellValueFactory(new PropertyValueFactory<>("nombre"));
         colApellidos.setCellValueFactory(new PropertyValueFactory<>("apellidos"));
         colEdad.setCellValueFactory(new PropertyValueFactory<>("edad"));
 
+        // Centrar el texto de la columna de edad
         colEdad.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(Integer item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty ? null : Integer.toString(item));
-                setAlignment(Pos.CENTER_RIGHT);
+                setAlignment(Pos.CENTER_RIGHT); // Alineación a la derecha
             }
         });
 
+        // Cargar personas desde la base de datos usando cargarPersonas
+        PersonaDao personaDao = new PersonaDao(); // Crear una instancia de PersonaDao
+        ObservableList<Persona> personasCargadas = personaDao.cargarPersonas(); // Llamar a cargarPersonas
+        personasData.addAll(personasCargadas); // Añadir las personas a la lista
+
+        // Filtrado de la lista de personas por nombre
         FilteredList<Persona> filteredData = new FilteredList<>(personasData, p -> true);
         txtNombre.textProperty().addListener((observable, oldValue, newValue) -> {
             filteredData.setPredicate(persona -> {
-                if (newValue == null || newValue.isEmpty()) return true;
+                // Si el campo de texto está vacío, mostrar todas las personas
+                if (newValue == null || newValue.isEmpty()) {
+                    return true;
+                }
+                // Filtrar por nombre
                 String lowerCaseFilter = newValue.toLowerCase();
                 return persona.getNombre().toLowerCase().contains(lowerCaseFilter);
             });
         });
 
+        // Vincular la tabla con la lista filtrada
         SortedList<Persona> sortedData = new SortedList<>(filteredData);
         sortedData.comparatorProperty().bind(tableInfo.comparatorProperty());
         tableInfo.setItems(sortedData);
-
-        conexion.getConexion();
-
-        try (Connection connection = conexion.getConexion();
-             PreparedStatement statement = connection.prepareStatement("SELECT nombre, apellidos, edad FROM Persona")) {
-
-            ResultSet resultSet = statement.executeQuery();
-            while (resultSet.next()) {
-                String nombre = resultSet.getString("nombre");
-                String apellidos = resultSet.getString("apellidos");
-                int edad = resultSet.getInt("edad");
-                Persona persona = new Persona(nombre, apellidos, edad);
-                personasData.add(persona);
-            }
-        } catch (SQLException e) {
-            mostrarAlerta("Error al cargar datos desde la base de datos: " + e.getMessage());
-        }
     }
 
     /**
-     * Muestra una alerta informativa al usuario.
+     * Muestra un mensaje de alerta.
      *
      * @param mensaje el mensaje a mostrar en la alerta
      */

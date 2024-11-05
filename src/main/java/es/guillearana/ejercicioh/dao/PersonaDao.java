@@ -77,15 +77,26 @@ public class PersonaDao {
             System.out.println("No hay conexión a la base de datos.");
             return;
         }
+
+        int personaId = p.getId(); // Obtenemos el ID de la persona
+        System.out.println("Intentando eliminar la persona con ID: " + personaId);
+
         String consulta = "DELETE FROM Persona WHERE id = ?";
         try (PreparedStatement pstmt = conexion.getConexion().prepareStatement(consulta)) {
-            pstmt.setInt(1, p.getId());
-            pstmt.executeUpdate();
+            pstmt.setInt(1, personaId);
+            int filasEliminadas = pstmt.executeUpdate();
+
+            if (filasEliminadas > 0) {
+                System.out.println("Persona eliminada con éxito.");
+            } else {
+                System.out.println("No se encontró ninguna persona con ID: " + personaId);
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             throw e;
         }
     }
+
 
     /**
      * Añade una nueva persona a la base de datos.

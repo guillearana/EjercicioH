@@ -113,6 +113,7 @@ public class PersonaDao {
 
     /**
      * Modifica los datos de una persona existente en la base de datos.
+     * Si el ID no existe, inserta la persona como un nuevo registro.
      *
      * @param persona El objeto Persona con los datos actualizados.
      * @throws SQLException Si ocurre un problema al ejecutar la consulta.
@@ -122,17 +123,32 @@ public class PersonaDao {
             System.out.println("No hay conexión a la base de datos.");
             return;
         }
-        String sql = "UPDATE Persona SET nombre = ?, apellidos = ?, edad = ? WHERE id = ?";
-        try (PreparedStatement statement = conexion.getConexion().prepareStatement(sql)) {
-            statement.setString(1, persona.getNombre());
-            statement.setString(2, persona.getApellidos());
-            statement.setInt(3, persona.getEdad());
-            statement.setInt(4, persona.getId());
 
-            int rowsUpdated = statement.executeUpdate();
+        String sqlUpdate = "UPDATE Persona SET nombre = ?, apellidos = ?, edad = ? WHERE id = ?";
+        String sqlInsert = "INSERT INTO Persona (id, nombre, apellidos, edad) VALUES (?, ?, ?, ?)";
+
+        try (PreparedStatement statementUpdate = conexion.getConexion().prepareStatement(sqlUpdate)) {
+            statementUpdate.setString(1, persona.getNombre());
+            statementUpdate.setString(2, persona.getApellidos());
+            statementUpdate.setInt(3, persona.getEdad());
+            statementUpdate.setInt(4, persona.getId());
+
+            int rowsUpdated = statementUpdate.executeUpdate();
+
             if (rowsUpdated == 0) {
-                throw new SQLException("No se encontró la persona con ID: " + persona.getId());
+                // Si el ID no existe, realiza la inserción de la nueva persona
+                try (PreparedStatement statementInsert = conexion.getConexion().prepareStatement(sqlInsert)) {
+                    statementInsert.setInt(1, persona.getId());
+                    statementInsert.setString(2, persona.getNombre());
+                    statementInsert.setString(3, persona.getApellidos());
+                    statementInsert.setInt(4, persona.getEdad());
+                    statementInsert.executeUpdate();
+                    System.out.println("Persona no encontrada, creada una nueva con ID: " + persona.getId());
+                }
+            } else {
+                System.out.println("Persona con ID " + persona.getId() + " modificada correctamente.");
             }
         }
     }
+
 }
